@@ -2,9 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Care Plan Creator</title>
+
+    <!-- Favicon (ruta relativa para producción) -->
+    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
+
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -28,9 +32,7 @@
                 900: '#111827',
               },
             },
-            animation: {
-              aiPulse: 'aiPulse 1.3s ease-in-out infinite',
-            },
+            animation: { aiPulse: 'aiPulse 1.3s ease-in-out infinite' },
             keyframes: {
               aiPulse: {
                 '0%, 100%': { transform: 'scale(1)', opacity: '1' },
@@ -41,131 +43,77 @@
         }
       }
     </script>
+
+    <!-- Estilos utilitarios -->
     <style>
       @media print {
-        body * {
-          visibility: hidden;
-        }
-        .printable-area, .printable-area * {
-          visibility: visible;
-        }
+        body * { visibility: hidden; }
+        .printable-area, .printable-area * { visibility: visible; }
         .printable-area {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          height: 100%;
+          position: absolute; left: 0; top: 0; width: 100%; height: 100%;
           overflow: visible;
         }
-        .no-print, .no-print * {
-          display: none !important;
-        }
+        .no-print, .no-print * { display: none !important; }
       }
+
       @keyframes highlight-fade {
-        0% {
-          box-shadow: 0 0 0 4px rgba(98, 131, 245, 0.5); /* brand-blue with opacity */
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(98, 131, 245, 0);
-        }
+        0% { box-shadow: 0 0 0 4px rgba(98,131,245,0.5); }
+        100% { box-shadow: 0 0 0 0 rgba(98,131,245,0); }
       }
+      .highlight-animation { animation: highlight-fade 2.5s ease-out forwards; }
 
-      .highlight-animation {
-        animation: highlight-fade 2.5s ease-out forwards;
-      }
+      @keyframes scale-in { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      .animate-scale-in { animation: scale-in 0.15s ease-out forwards; }
 
-      @keyframes scale-in {
-        from { transform: scale(0.9); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-      }
-      .animate-scale-in {
-        animation: scale-in 0.15s ease-out forwards;
-      }
+      @keyframes highlight-fade-violet { 0% { box-shadow: 0 0 6px #7C3AED; } 100% { box-shadow: 0 0 0 transparent; } }
+      .highlight-source-node { animation: highlight-fade-violet 0.5s ease-out; }
 
-      @keyframes highlight-fade-violet {
-        0% {
-          box-shadow: 0 0 6px #7C3AED;
-        }
-        100% {
-          box-shadow: 0 0 0 transparent;
-        }
-      }
-
-      .highlight-source-node {
-        animation: highlight-fade-violet 0.5s ease-out;
-      }
-      
-      @keyframes draw-line {
-        to {
-          stroke-dashoffset: 0;
-        }
-      }
-      .connector-path {
-        stroke-dasharray: 1000;
-        stroke-dashoffset: 1000;
-        animation: draw-line 0.3s ease-out forwards;
-      }
+      @keyframes draw-line { to { stroke-dashoffset: 0; } }
+      .connector-path { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw-line 0.3s ease-out forwards; }
 
       @keyframes fade-out-and-collapse {
-        from {
-            opacity: 1;
-            transform: scaleY(1);
-            max-height: 200px;
-        }
+        from { opacity: 1; transform: scaleY(1); max-height: 200px; }
         to {
-            opacity: 0;
-            transform: scaleY(0);
-            max-height: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-            margin-top: 0;
-            margin-bottom: 0;
-            border-width: 0;
+          opacity: 0; transform: scaleY(0); max-height: 0;
+          padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; border-width: 0;
         }
       }
+      .node-deleting { animation: fade-out-and-collapse 0.3s ease-out forwards; overflow: hidden; }
 
-      .node-deleting {
-          animation: fade-out-and-collapse 0.3s ease-out forwards;
-          overflow: hidden;
-      }
-
-      /* Thin scrollbars for a cleaner look */
-      /* For Firefox */
-      * {
-        scrollbar-width: thin;
-        scrollbar-color: #9CA3AF #F3F4F6; /* thumb and track color */
-      }
-
-      /* For Chrome, Safari, and Opera */
-      *::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-
-      *::-webkit-scrollbar-track {
-        background: #F3F4F6;
-      }
-
-      *::-webkit-scrollbar-thumb {
-        background-color: #9CA3AF;
-        border-radius: 4px;
-        border: 2px solid #F3F4F6;
-      }
+      /* Scrollbars delgadas */
+      * { scrollbar-width: thin; scrollbar-color: #9CA3AF #F3F4F6; }
+      *::-webkit-scrollbar { width: 8px; height: 8px; }
+      *::-webkit-scrollbar-track { background: #F3F4F6; }
+      *::-webkit-scrollbar-thumb { background-color: #9CA3AF; border-radius: 4px; border: 2px solid #F3F4F6; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.27.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.3.0"
-  }
-}
-</script>
-</head>
+
+    <!-- Import maps (desde AI Studio) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://aistudiocdn.com/react@^19.2.0",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.27.0",
+        "recharts": "https://aistudiocdn.com/recharts@^3.3.0"
+      }
+    }
+    </script>
+  </head>
+
   <body>
+    <noscript>
+      <strong>JavaScript es requerido para ejecutar esta aplicación.</strong>
+    </noscript>
+
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+
+    <!-- Entrada de la app: ruta relativa para producción -->
+    <!-- Si tu archivo de arranque está en la raíz del repo (index.tsx), usa esta línea: -->
+    <script type="module" src="./index.tsx"></script>
+
+    <!-- Si en tu proyecto el arranque real está en /src/main.tsx, usa esta otra en su lugar:
+    <script type="module" src="./src/main.tsx"></script>
+    -->
   </body>
 </html>
