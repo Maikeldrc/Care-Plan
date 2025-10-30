@@ -5,14 +5,19 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
   return {
-    base: './',                 // ← asegura rutas relativas para assets
-    server: { port: 3000, host: '0.0.0.0' },
+    base: './',                        // 👈 esencial para rutas en prod
     plugins: [react()],
+    server: { port: 3000, host: '0.0.0.0' },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
-    resolve: { alias: { '@': path.resolve(__dirname, '.') } },
-    build: { outDir: 'dist' },  // ← explícito
+    resolve: {
+      alias: { '@': path.resolve(__dirname, '.') },
+    },
+    build: {
+      outDir: 'dist',
+      chunkSizeWarningLimit: 1500,
+    },
   }
 })
