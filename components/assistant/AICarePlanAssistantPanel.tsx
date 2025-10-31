@@ -14,13 +14,16 @@ import { XIcon } from '../icons/XIcon';
 import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { TargetIcon } from '../icons/TargetIcon';
 import { LightningBoltIcon } from '../icons/LightningBoltIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 
 // @ts-ignore
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 if (recognition) {
   recognition.continuous = false;
-  recognition.lang = 'en-US';
+  recognition.lang = 'es-ES';
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
 }
@@ -308,26 +311,47 @@ const LoadingIndicator: React.FC = () => (
 );
 
 const ContextBar: React.FC<{carePlan: CarePlan}> = ({ carePlan }) => {
-    const diagnoses = carePlan.diagnoses.primary;
+    const [isContextExpanded, setIsContextExpanded] = useState(false);
+    const { primary: diagnoses, allergies, riskFactors } = carePlan.diagnoses;
     const goalCount = carePlan.goals.length;
     const taskCount = carePlan.goals.reduce((acc, goal) => acc + goal.tasks.length, 0);
     
     return (
         <div className="mt-2 pt-2 border-t text-xs text-brand-gray-500">
-            <h4 className="font-bold mb-1 text-brand-gray-600">Active Context</h4>
-            <div className="flex items-center justify-between gap-2">
-                 <div className="flex items-center gap-1.5" title="Diagnoses">
-                    <ClipboardListIcon className="w-4 h-4"/>
-                    <span className="truncate">{diagnoses.join(', ') || 'No diagnoses'}</span>
-                </div>
-                 <div className="flex items-center gap-3">
-                     <div className="flex items-center gap-1.5" title="Goals">
-                        <TargetIcon className="w-4 h-4"/>
-                        <span>{goalCount}</span>
+            <button 
+                onClick={() => setIsContextExpanded(!isContextExpanded)}
+                className="w-full flex justify-between items-center font-bold text-brand-gray-600 py-1"
+                aria-expanded={isContextExpanded}
+            >
+                <span>Active Context</span>
+                <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${isContextExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            <div 
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${isContextExpanded ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}
+            >
+                <div className="space-y-2">
+                    <div>
+                        <p className="font-semibold text-brand-gray-700 mb-1 flex items-center gap-1.5"><ClipboardListIcon className="w-4 h-4"/> Diagnoses:</p>
+                        <p className="leading-tight pl-5">{diagnoses.join(', ') || 'No diagnoses'}</p>
                     </div>
-                     <div className="flex items-center gap-1.5" title="Tasks">
-                        <LightningBoltIcon className="w-4 h-4"/>
-                        <span>{taskCount}</span>
+                    <div>
+                        <p className="font-semibold text-brand-gray-700 mb-1 flex items-center gap-1.5"><ShieldCheckIcon className="w-4 h-4"/> Allergies:</p>
+                        <p className="leading-tight pl-5">{allergies.join(', ') || 'None specified'}</p>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-brand-gray-700 mb-1 flex items-center gap-1.5"><ExclamationTriangleIcon className="w-4 h-4"/> Risk Factors:</p>
+                        <p className="leading-tight pl-5">{riskFactors.join(', ') || 'None specified'}</p>
+                    </div>
+    
+                    <div className="flex items-center gap-4 pt-2 border-t mt-2">
+                         <div className="flex items-center gap-1.5" title="Goals">
+                            <TargetIcon className="w-4 h-4"/>
+                            <span>{goalCount} Goals</span>
+                        </div>
+                         <div className="flex items-center gap-1.5" title="Tasks">
+                            <LightningBoltIcon className="w-4 h-4"/>
+                            <span>{taskCount} Tasks</span>
+                        </div>
                     </div>
                 </div>
             </div>

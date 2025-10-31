@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import type { CarePlan, Goal, GoalMetric, Task, TaskKind, TaskOwner, TaskPriority, TaskStatus, TargetValue, Barrier, AiOrchestratorResponse, AiClarificationOption, Mitigation, Instruction, EducationMaterial, EducationCategory, EducationSchedule, AiOptimizationSuggestion, TaskTriggerEvent, TriggerTemplate } from '../types';
 import { initialCarePlan } from '../data/mockData';
@@ -78,32 +77,49 @@ const applyPatch = (plan: CarePlan, patch: any): { updatedPlan: CarePlan, highli
                 if (op.resourceType === 'Goal') {
                     const newId = `goal-${Date.now()}-${Math.random()}`;
                     const newGoal: Goal = {
-                        ...createItem,
+                        // Defaults for all required Goal properties
                         id: newId,
+                        title: 'New Goal',
+                        description: '',
                         status: 'Active',
+                        priority: 'Medium',
+                        qualityMeasures: [],
+                        startDate: new Date().toISOString().split('T')[0],
+                        targetDate: new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0],
+                        diagnoses: [],
+                        metrics: [],
                         tasks: [],
                         measurementTargets: [],
                         eventsAndTasks: [],
                         dataTable: [],
-                        startDate: createItem.startDate || new Date().toISOString().split('T')[0],
-                        targetDate: createItem.targetDate || new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0],
+                        // Now, spread the data from the patch, which will override defaults
+                        ...createItem,
                     };
                     updatedPlan.goals.push(newGoal);
                     highlights.add(newId);
                     lastTouchedGoalId = newId;
                 } else if (op.resourceType === 'Task') {
                     const newId = `task-${Date.now()}-${Math.random()}`;
+                    // Get kind from item to look up defaults, or use a fallback. `createItem` might not have it.
+                    const kind = createItem.kind || 'Task';
+                    const details = kindDetails[kind];
+
                     const newTask: Task = {
+                        // Defaults for all required Task properties
                         id: newId,
-                        kind: 'Task',
+                        title: 'New Task',
+                        kind: kind,
                         status: 'Pending',
                         priority: 'Medium',
                         owner: 'Care Manager',
+                        acceptanceCriteria: details.acceptance,
                         autoComplete: false,
                         extra: {},
-                        fhirEvidence: { resource: 'Task', status: 'completed' },
+                        fhirEvidence: { resource: details.fhirResource, status: details.fhirStatus },
                         source: 'AI',
+                        // Now, spread the data from the patch
                         ...createItem,
+                        // And finally, handle special cases like dueDate
                         dueDate: parseDatePlaceholder(createItem.dueDate || '{{today+7d}}'),
                     };
 
@@ -841,7 +857,7 @@ export const getAiOptimizationSuggestions = (carePlan: CarePlan): Promise<{ sugg
             // Suggestion 2: Barrier Alert
             const adherenceBarrier = modifiedPlan.barriers.find((b: Barrier) => b.category === 'Medication Adherence');
             const bpMedInstruction = modifiedPlan.instructions.find((i: Instruction) => i.category === 'Medication');
-            if (adherenceBarrier && bpMedInstruction) {
+            if (adherenceBarrier && bpMedInstruction && bpGoal) {
                 suggestions.push({
                     category: 'Barrier Alerts',
                     text: 'Add a follow-up education task about medication side effects to mitigate the "Medication Adherence" barrier.',
