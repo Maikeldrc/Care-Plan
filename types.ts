@@ -397,8 +397,8 @@ export interface AiClarificationOption {
 
 export type AiOrchestratorResponse = 
   | { type: 'clarification'; message: string; options: AiClarificationOption[]; conversationContext: any; }
-  | { type: 'confirmation'; summary: string; conversationContext: any; }
-  | { type: 'success'; updatedPlan: CarePlan; summary: string; highlights: Set<string>; }
+  | { type: 'confirmation'; summary: string; conversationContext: any; codePreview?: any; }
+  | { type: 'success'; updatedPlan: CarePlan; summary: string; highlights: Set<string>; codePreview?: any; }
   | { type: 'error' | 'cancel'; message: string; }
   | { type: 'idle' };
 

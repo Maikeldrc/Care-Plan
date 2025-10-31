@@ -1,5 +1,7 @@
 {
-  "name": "AI Care Plan Creator v2.1",
+  "name": "Copy of AI Care Plan Creator v2.2",
   "description": "A smart, personalized care plan builder for clinical care management, powered by Gemini. It enables clinicians to create, track, and modify patient care plans with intelligent assistance.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

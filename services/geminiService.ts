@@ -10,148 +10,269 @@ import { triggerTemplates } from '../data/triggerTemplates';
 
 const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
 
-const getFutureDate = (durationStr: string): string => {
+const parseDatePlaceholder = (dateStr: string): string => {
     const now = new Date();
-    const match = durationStr.match(/(\d+)\s(week|day|month)s?/i);
+    if (!dateStr) return now.toISOString().split('T')[0];
+    const match = dateStr.match(/\{\{today\s*([+-])\s*(\d+)([dmy])\}\}/);
     if (match) {
-        const value = parseInt(match[1]);
-        const unit = match[2].toLowerCase();
-        if (unit === 'week') now.setDate(now.getDate() + value * 7);
-        else if (unit === 'day') now.setDate(now.getDate() + value);
-        else if (unit === 'month') now.setMonth(now.getMonth() + value);
+        const operator = match[1];
+        const value = parseInt(match[2]);
+        const unit = match[3];
+
+        if (operator === '+') {
+            if (unit === 'd') now.setDate(now.getDate() + value);
+            if (unit === 'm') now.setMonth(now.getMonth() + value);
+            if (unit === 'y') now.setFullYear(now.getFullYear() + value);
+        } else {
+            if (unit === 'd') now.setDate(now.getDate() - value);
+            if (unit === 'm') now.setMonth(now.getMonth() - value);
+            if (unit === 'y') now.setFullYear(now.getFullYear() - value);
+        }
+    } else {
+        // Fallback for simple date strings or if format is wrong
+        const parsedDate = new Date(dateStr);
+        if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+        }
     }
     return now.toISOString().split('T')[0];
 };
 
-// --- Mock Gemini Orchestrator with Conversation Flow ---
-const mockGeminiOrchestrator = (
-    request: { command?: string; interaction?: any; context?: any },
-    currentPlan: CarePlan
-): AiOrchestratorResponse => {
-    let context = request.context || {};
-    const command = request.command;
-    const interaction = request.interaction;
+const applyPatch = (plan: CarePlan, patch: any): { updatedPlan: CarePlan, highlights: Set<string> } => {
+    const updatedPlan = JSON.parse(JSON.stringify(plan));
+    const highlights = new Set<string>();
+    let lastTouchedGoalId: string | null = null;
 
-    // If there's an interaction, we're continuing a conversation
-    if (interaction) {
-        if (interaction.action === 'cancel') {
-            return { type: 'cancel', message: "Action cancelled. No changes applied." };
-        }
-        if (interaction.action === 'confirm_action') {
-            // Apply the changes stored in the context
-            const updatedPlan = JSON.parse(JSON.stringify(currentPlan));
-            const highlights = new Set<string>();
-            let summary = "Changes applied successfully.";
+    const operations = patch.update || [];
 
-            if (context.intent === 'addGoal') {
-                updatedPlan.goals.push(context.proposedGoal);
-                highlights.add(context.proposedGoal.id);
-                summary = `✅ Added new goal: "${context.proposedGoal.title}"`;
-            } else if (context.intent === 'addTask') {
-                const goalIndex = updatedPlan.goals.findIndex((g: Goal) => g.id === context.goalId);
+    operations.forEach((op: any) => {
+        if (op.id && op.resourceType) { // UPDATE
+            if (op.resourceType === 'Goal') {
+                const goalIndex = updatedPlan.goals.findIndex((g: Goal) => g.id === op.id);
                 if (goalIndex > -1) {
-                    updatedPlan.goals[goalIndex].tasks.push(context.proposedTask);
-                    highlights.add(context.proposedTask.id);
-                    summary = `✅ Added new task: "${context.proposedTask.title}"`;
+                    updatedPlan.goals[goalIndex] = { ...updatedPlan.goals[goalIndex], ...op };
+                    highlights.add(op.id);
+                    lastTouchedGoalId = op.id;
+                }
+            } else if (op.resourceType === 'Instruction') {
+                const instructionIndex = updatedPlan.instructions.findIndex((i: Instruction) => i.id === op.id);
+                if (instructionIndex > -1) {
+                    updatedPlan.instructions[instructionIndex] = { ...updatedPlan.instructions[instructionIndex], ...op };
+                    highlights.add(op.id);
+                }
+            } else if (op.resourceType === 'Task') {
+                for (const goal of updatedPlan.goals) {
+                    const taskIndex = goal.tasks.findIndex((t: Task) => t.id === op.id);
+                    if (taskIndex > -1) {
+                        goal.tasks[taskIndex] = { ...goal.tasks[taskIndex], ...op };
+                        highlights.add(op.id);
+                        lastTouchedGoalId = goal.id;
+                        break;
+                    }
                 }
             }
-            // Add other intents (update, delete) here...
+        } else if (op.create && op.resourceType) { // CREATE
+            const itemsToCreate = Array.isArray(op.create) ? op.create : [op.create];
 
-            return { type: 'success', updatedPlan, summary, highlights };
+            itemsToCreate.forEach((createItem: any) => {
+                if (op.resourceType === 'Goal') {
+                    const newId = `goal-${Date.now()}-${Math.random()}`;
+                    const newGoal: Goal = {
+                        ...createItem,
+                        id: newId,
+                        status: 'Active',
+                        tasks: [],
+                        measurementTargets: [],
+                        eventsAndTasks: [],
+                        dataTable: [],
+                        startDate: createItem.startDate || new Date().toISOString().split('T')[0],
+                        targetDate: createItem.targetDate || new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0],
+                    };
+                    updatedPlan.goals.push(newGoal);
+                    highlights.add(newId);
+                    lastTouchedGoalId = newId;
+                } else if (op.resourceType === 'Task') {
+                    const newId = `task-${Date.now()}-${Math.random()}`;
+                    const newTask: Task = {
+                        id: newId,
+                        kind: 'Task',
+                        status: 'Pending',
+                        priority: 'Medium',
+                        owner: 'Care Manager',
+                        autoComplete: false,
+                        extra: {},
+                        fhirEvidence: { resource: 'Task', status: 'completed' },
+                        source: 'AI',
+                        ...createItem,
+                        dueDate: parseDatePlaceholder(createItem.dueDate || '{{today+7d}}'),
+                    };
+
+                    const targetGoalId = createItem.goalId || lastTouchedGoalId || updatedPlan.goals[0]?.id;
+                    if (targetGoalId) {
+                        const goal = updatedPlan.goals.find((g: Goal) => g.id === targetGoalId);
+                        if (goal) {
+                            goal.tasks.push(newTask);
+                            highlights.add(newId);
+                        }
+                    }
+                }
+            });
         }
-        // Handle clarification responses
-        context[interaction.action] = interaction.value;
-    }
+    });
 
-    // If there's a command, we're starting a new conversation
-    if (command) {
-        context = { originalCommand: command };
-        // --- ADD GOAL INTENT ---
-        const addGoalMatch = command.match(/add a goal for (.*)/i);
-        if (addGoalMatch) {
-            context.intent = 'addGoal';
-            const goalSubject = addGoalMatch[1].trim();
-            const newId = `goal-${Date.now()}`;
-            const newGoal: Goal = {
-                id: newId,
-                title: `Manage ${goalSubject.charAt(0).toUpperCase() + goalSubject.slice(1)}`,
-                description: `A new goal to address ${goalSubject}.`,
-                status: 'Active', priority: 'Medium', qualityMeasures: [],
-                startDate: new Date().toISOString().split('T')[0],
-                targetDate: getFutureDate('3 months'),
-                diagnoses: [], metrics: [], tasks: [],
-                measurementTargets: [], eventsAndTasks: [], dataTable: []
-            };
-            if (goalSubject.toLowerCase().includes('hypertension')) {
-                 newGoal.metrics.push({ name: 'Systolic BP', target: { operator: '<', value_min: null, value_max: 130 }, unit: 'mmHg', referenceRange: 'Normal: < 130 mmHg', source: 'AI' });
-                 newGoal.qualityMeasures.push('CMS165');
-            }
-            context.proposedGoal = newGoal;
-            return {
-                type: 'confirmation',
-                summary: `I will create a new goal: "${newGoal.title}" and link it to ${newGoal.qualityMeasures[0] || 'relevant quality measures'}. Is that correct?`,
-                conversationContext: context,
-            };
-        }
-        // --- ADD TASK INTENT ---
-        const addTaskMatch = command.match(/add a task for (.*)/i);
-        if (addTaskMatch) {
-            context.intent = 'addTask';
-            context.taskTitle = addTaskMatch[1].trim();
+    return { updatedPlan, highlights };
+};
 
-            if (currentPlan.goals.length === 0) {
-                return { type: 'error', message: 'There are no goals to add a task to. Please add a goal first.' };
-            }
-            if (currentPlan.goals.length === 1) {
-                 context.goalId = currentPlan.goals[0].id; // Assume the only goal
-            } else {
-                 // AMBIGUITY: Ask which goal
-                 return {
-                     type: 'clarification',
-                     message: 'Which goal should this task belong to?',
-                     options: currentPlan.goals.map(g => ({ text: g.title, action: 'select_goal', value: g.id })),
-                     conversationContext: context
-                 };
-            }
-        }
-    }
+const systemPrompt = `You are the AI Care Plan Assistant integrated in a clinical management platform.
+Your role is to analyze, improve, or modify a patient's Care Plan based on user input.
+The patient's current care plan will be provided in JSON format. Use the 'id' fields from this JSON (e.g., "goal1", "task2") in your patch.
+Always answer in Spanish using a structured, readable, and actionable format, and include a FHIR-like JSON patch that can be applied to update the plan automatically.
 
-    // --- CONTINUE CONVERSATION AFTER CLARIFICATION ---
-    if (context.intent === 'addTask' && context.select_goal) {
-        context.goalId = context.select_goal;
-        const newTaskId = `task-${Date.now()}`;
-        const newTask: Task = {
-            id: newTaskId,
-            kind: 'Communication', title: context.taskTitle,
-            owner: 'Care Manager', dueDate: getFutureDate('7 days'),
-            priority: 'Medium', status: 'Pending',
-            acceptanceCriteria: 'Task completed.', autoComplete: false,
-            extra: {}, fhirEvidence: { resource: 'Task', status: 'requested' }, source: 'AI',
-        };
-        context.proposedTask = newTask;
-        const goalTitle = currentPlan.goals.find(g => g.id === context.goalId)?.title;
-        return {
-            type: 'confirmation',
-            summary: `I will add the task "${newTask.title}" to the goal "${goalTitle}". Does this look correct?`,
-            conversationContext: context,
-        };
-    }
-    
-    return { type: 'error', message: "I couldn't understand that command. Please try a different phrasing, like 'add a goal for hypertension'." };
+Do not return a single long paragraph. Instead, organize the output as follows:
+
+### 🩺 Análisis del Plan de Cuidado
+Breve resumen clínico de los hallazgos. Menciona brevemente el contexto (paciente, condiciones, metas relevantes).
+
+### 🧩 Interpretación y Supuestos
+Usa viñetas para listar las observaciones. Indica los supuestos clínicos o contextuales que asumiste.
+
+### ⚙️ Cambios Propuestos
+Divide los cambios por área o meta, usando subtítulos y emojis/íconos clínicos simples (🩺, 📅, ⚙️, ✅, ⚠️, ➕). For existing goals, reference them by their title and ID (e.g., Diabetes (Meta 2)).
+
+### 🧠 JSON Patch
+Incluye un bloque JSON con los cambios en formato FHIR (solo campos modificados).
+- For updates to existing resources (Goal, Task, etc.), you MUST include the 'id' of the resource from the provided care plan context.
+- For creating new tasks related to an existing goal, create them in an operation immediately after updating that goal.
+- For creating new tasks related to a new goal, create the goal first, then create the tasks in a subsequent operation.
+
+Ejemplo:
+{
+  "update": [
+    { "resourceType": "Goal", "id": "goal2", "status": "in-progress", "targetDate": "2026-01-14" },
+    { "resourceType": "Task", "create": [
+        { "title": "Review diabetes goal", "owner": "Care Manager", "priority": "high" },
+        { "title": "Review diabetes medication", "owner": "PCP", "priority": "high" }
+    ]},
+    { "resourceType": "Goal", "create": [
+        { "title": "Smoking cessation", "priority": "high" }
+    ]},
+    { "resourceType": "Task", "create": [
+        { "title": "Discuss smoking cessation with patient", "owner": "Care Manager", "priority": "medium" }
+    ]}
+  ]
 }
 
+Style rules:
+- Use Markdown headings (###).
+- Keep paragraphs under 3 lines.
+- Never return unformatted text.
+- Always include a JSON Patch section.
+- Be bilingual: understand English/Spanish input and always respond in Spanish using the specified format.
+`;
 
-export const updateCarePlanWithAI = (
+
+const liveGeminiOrchestrator = async (
+    request: { command?: string; interaction?: any; context?: any },
+    currentPlan: CarePlan
+): Promise<AiOrchestratorResponse> => {
+    const instruction = request.command || request.context?.originalCommand;
+    if (!instruction) {
+        return { type: 'error', message: "No instruction provided." };
+    }
+
+    const promptPayload = {
+        instruction,
+        context: {
+            carePlan: currentPlan
+        }
+    };
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: JSON.stringify(promptPayload),
+            config: {
+                systemInstruction: systemPrompt,
+            }
+        });
+
+        const aiMarkdownText = response.text.trim();
+        const patchHeaderIndex = aiMarkdownText.indexOf('JSON Patch');
+        let patch = null;
+
+        if (patchHeaderIndex !== -1) {
+            const textAfterHeader = aiMarkdownText.substring(patchHeaderIndex);
+            const jsonMatch = textAfterHeader.match(/{\s*("update"|"create"|"delete")[\s\S]*}/);
+            if (jsonMatch) {
+                try {
+                    patch = JSON.parse(jsonMatch[0]);
+                } catch (e) {
+                    console.error("Failed to parse JSON patch from AI response", e, jsonMatch[0]);
+                }
+            }
+        }
+
+        const conversationContext = {
+            ...request.context,
+            originalCommand: instruction,
+            patch: patch
+        };
+
+        return {
+            type: 'confirmation',
+            summary: aiMarkdownText,
+            codePreview: patch,
+            conversationContext
+        };
+        
+    } catch (error) {
+        console.error("Error with Live Gemini Orchestrator:", error);
+        return { type: 'error', message: "An error occurred while communicating with the AI. Please try again." };
+    }
+};
+
+export const updateCarePlanWithAI = async (
     request: { command?: string; interaction?: any; context?: any; currentPlan: CarePlan }
 ): Promise<AiOrchestratorResponse> => {
-  console.log("Sending to AI orchestrator:", request);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const result = mockGeminiOrchestrator(request, request.currentPlan);
-      console.log("Received from AI:", result);
-      resolve(result);
-    }, 1000);
-  });
+    console.log("Sending to AI orchestrator:", request);
+    const { interaction, context, currentPlan } = request;
+
+    if (interaction) {
+        if (interaction.action === 'cancel') {
+            return { type: 'cancel', message: 'Action cancelled by user.' };
+        }
+
+        const patchToApply = interaction.action === 'confirm_edited_action'
+            ? interaction.value
+            : context?.patch;
+
+        if (patchToApply && (interaction.action === 'confirm_action' || interaction.action === 'confirm_edited_action')) {
+            const { updatedPlan, highlights } = applyPatch(currentPlan, patchToApply);
+            return {
+                type: 'success',
+                updatedPlan,
+                summary: '✅ Care Plan successfully updated.',
+                highlights,
+                codePreview: patchToApply
+            };
+        }
+    }
+  
+    // If not an interaction, or an unhandled one, call Gemini.
+    return liveGeminiOrchestrator(request, currentPlan);
+};
+
+export const getChatbotResponse = async (prompt: string): Promise<string> => {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+        return response.text;
+    } catch (error) {
+        console.error("Error getting chatbot response:", error);
+        return "Sorry, I was unable to process your request at this moment. Please check your API key and try again.";
+    }
 };
 
 // --- New service to get template for a trigger ---
@@ -731,7 +852,7 @@ export const getAiOptimizationSuggestions = (carePlan: CarePlan): Promise<{ sugg
                     kind: 'Communication',
                     title: 'Educate patient on Lisinopril side effects',
                     owner: 'Care Manager',
-                    dueDate: getFutureDate('3 days'),
+                    dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                     priority: 'Medium',
                     status: 'Pending',
                     acceptanceCriteria: 'Patient verbalizes understanding of common side effects and when to report them.',

@@ -21,7 +21,7 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ onSendCommand,
   useEffect(() => {
     if (interactionState.type === 'success' || interactionState.type === 'cancel' || interactionState.type === 'error') {
       const message = interactionState.type === 'success' 
-        ? interactionState.summary 
+        ? '✅ Care Plan successfully updated.' 
         : (interactionState.message || 'An unexpected error occurred.');
       setDisplayMessage(message);
       const timer = setTimeout(() => setDisplayMessage(''), 5000); // Display message for 5 seconds
