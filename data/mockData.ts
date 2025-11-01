@@ -205,7 +205,7 @@ export const initialCarePlan: CarePlan = {
                     ]
                 } as ReactiveFlow
             ]
-        } as Task,
+        } as Task
       ],
       measurementTargets: [
         {
@@ -401,5 +401,11 @@ export const initialCarePlan: CarePlan = {
       nextDeliveryAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       lastActivity: null,
     }
-  ]
+  ],
+  provider: {
+    name: 'Dr. Sarah Thompson, MD',
+    phone: '(305) 555-7821',
+    address: '1234 Sunset Blvd, Miami, FL 33145',
+    clinicName: 'Community Health Clinic'
+  }
 };

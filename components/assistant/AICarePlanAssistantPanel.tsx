@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { CarePlan, AiOrchestratorResponse } from '../../types';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
@@ -51,7 +53,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
             {lines.map((line, index) => {
                 const trimmedLine = line.trim();
                 // Headings
-                if (trimmedLine.startsWith('### 🩺') || trimmedLine.startsWith('### 🧩') || trimmedLine.startsWith('### ⚙️')) {
+                if (trimmedLine.startsWith('### 🩺') || trimmedLine.startsWith('### 🧩') || trimmedLine.startsWith('### ⚙️') || trimmedLine.startsWith('### 🧠')) {
                     return <h3 key={index} className="text-md font-bold text-brand-gray-800 pt-3 flex items-center gap-2">{trimmedLine.replace('### ','')}</h3>;
                 }
                 // Subheadings
@@ -59,7 +61,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
                      return <h4 key={index} className="text-sm font-semibold text-brand-gray-700 pt-2 flex items-center gap-2">{trimmedLine}</h4>
                 }
                 // List items with emojis
-                if (/^(\s*)(🔄|📅|✅|🔔|🩺|➕|🧑‍⚕️|📚|📄)/.test(trimmedLine)) {
+                if (/^(\s*)(🔄|📅|✅|🔔|🩺|➕|🧑‍⚕️|📚|📄|🎯)/.test(trimmedLine)) {
                     return <p key={index} className="pl-4 flex items-start gap-2">{trimmedLine.trim()}</p>;
                 }
                 // Regular bullet points
@@ -90,7 +92,19 @@ export const AICarePlanAssistantPanel: React.FC<AICarePlanAssistantPanelProps> =
 
   useEffect(() => {
     if (interactionState.type !== 'idle') {
-        setHistory(prev => [...prev, { id: Date.now(), from: 'ai', content: interactionState }]);
+      const isFinalState = ['success', 'cancel', 'error'].includes(interactionState.type);
+
+      setHistory(prev => {
+        const lastItem = prev.length > 0 ? prev[prev.length - 1] : null;
+
+        if (isFinalState && lastItem?.from === 'ai' && lastItem.content.type === 'confirmation') {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = { ...lastItem, content: interactionState };
+          return newHistory;
+        } else {
+          return [...prev, { id: Date.now(), from: 'ai', content: interactionState }];
+        }
+      });
     }
   }, [interactionState]);
   
@@ -171,7 +185,7 @@ export const AICarePlanAssistantPanel: React.FC<AICarePlanAssistantPanelProps> =
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {history.map(item => <ChatMessage key={item.id} item={item} onInteraction={onInteraction} />)}
+        {history.map(item => <ChatMessage key={item.id} item={item} onInteraction={onInteraction} isLoading={isLoading} />)}
         {isLoading && <LoadingIndicator />}
         <div ref={chatEndRef} />
       </div>
@@ -187,8 +201,9 @@ export const AICarePlanAssistantPanel: React.FC<AICarePlanAssistantPanelProps> =
                     placeholder="Add a goal for diabetes..." 
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
+                    disabled={isLoading}
                 />
-                <button type="submit" className="bg-brand-blue text-white px-4 rounded-md hover:bg-blue-600 disabled:opacity-50" disabled={!inputValue.trim()}>Send</button>
+                <button type="submit" className="bg-brand-blue text-white px-4 rounded-md hover:bg-blue-600 disabled:opacity-50" disabled={!inputValue.trim() || isLoading}>Send</button>
             </form>
         </div>
         <ContextBar carePlan={carePlan} />
@@ -197,12 +212,12 @@ export const AICarePlanAssistantPanel: React.FC<AICarePlanAssistantPanelProps> =
   );
 };
 
-const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAssistantPanelProps['onInteraction']}> = ({ item, onInteraction }) => {
+const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAssistantPanelProps['onInteraction'], isLoading: boolean}> = ({ item, onInteraction, isLoading }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editableCode, setEditableCode] = useState('');
 
     useEffect(() => {
-        if (item.from === 'ai' && (item.content.type === 'confirmation' || item.content.type === 'success') && item.content.codePreview) {
+        if (item.from === 'ai' && item.content.type === 'confirmation' && item.content.codePreview) {
             setEditableCode(JSON.stringify(item.content.codePreview, null, 2));
         }
     }, [item]);
@@ -230,6 +245,12 @@ const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAss
     const renderContent = () => {
         switch(content.type) {
             case 'success':
+                return (
+                    <div className="flex items-center gap-2 font-semibold text-green-700">
+                        <CheckIcon className="w-5 h-5" />
+                        <p>{content.summary}</p>
+                    </div>
+                );
             case 'confirmation':
                 const { summary, codePreview } = content;
                 const hasPatch = codePreview && (Object.keys(codePreview.create || {}).length > 0 || Object.keys(codePreview.update || {}).length > 0);
@@ -253,13 +274,13 @@ const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAss
                                 </div>
                                 {content.type === 'confirmation' && (
                                     <div className="flex justify-end items-center gap-4 text-sm pt-2">
-                                        <button onClick={() => onInteraction({action: 'cancel'}, conversationContext)} className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-800">
+                                        <button disabled={isLoading} onClick={() => onInteraction({action: 'cancel'}, conversationContext)} className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-800 disabled:opacity-50">
                                             <XIcon className="w-4 h-4"/> Discard
                                         </button>
-                                        <button onClick={() => setIsEditing(!isEditing)} className="flex items-center gap-1 font-semibold text-brand-blue hover:text-blue-800">
+                                        <button disabled={isLoading} onClick={() => setIsEditing(!isEditing)} className="flex items-center gap-1 font-semibold text-brand-blue hover:text-blue-800 disabled:opacity-50">
                                             <PencilIcon className="w-4 h-4"/> {isEditing ? 'Cancel Edit' : 'Edit'}
                                         </button>
-                                        <button onClick={handleApply} className="flex items-center gap-1 font-semibold text-green-600 hover:text-green-800">
+                                        <button disabled={isLoading} onClick={handleApply} className="flex items-center gap-1 font-semibold text-green-600 hover:text-green-800 disabled:opacity-50">
                                             <CheckIcon className="w-4 h-4"/> Apply changes
                                         </button>
                                     </div>
@@ -269,8 +290,8 @@ const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAss
                         {/* Acknowledge button for messages without a patch */}
                         {content.type === 'confirmation' && !hasPatch && (
                              <div className="flex justify-end gap-2 pt-2">
-                                <button onClick={() => onInteraction({ action: 'cancel' }, conversationContext)}
-                                    className="px-3 py-1 bg-brand-blue text-white rounded-md text-sm font-semibold hover:bg-blue-600">
+                                <button disabled={isLoading} onClick={() => onInteraction({ action: 'cancel' }, conversationContext)}
+                                    className="px-3 py-1 bg-brand-blue text-white rounded-md text-sm font-semibold hover:bg-blue-600 disabled:opacity-50">
                                     Acknowledge
                                 </button>
                             </div>
@@ -283,7 +304,7 @@ const ChatMessage: React.FC<{item: ChatHistoryItem; onInteraction: AICarePlanAss
                         <p>{content.message}</p>
                         <div className="flex flex-wrap gap-2">
                             {content.options.map(opt => (
-                                <button key={opt.text} onClick={() => onInteraction(opt, content.conversationContext)} className="px-3 py-1 bg-white border border-brand-gray-300 rounded-md text-xs font-semibold hover:bg-brand-gray-100">
+                                <button key={opt.text} onClick={() => onInteraction(opt, content.conversationContext)} disabled={isLoading} className="px-3 py-1 bg-white border border-brand-gray-300 rounded-md text-xs font-semibold hover:bg-brand-gray-100 disabled:opacity-50">
                                     {opt.text}
                                 </button>
                             ))}

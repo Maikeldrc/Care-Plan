@@ -1,5 +1,6 @@
+
 import { GoogleGenAI } from "@google/genai";
-import type { CarePlan, Goal, GoalMetric, Task, TaskKind, TaskOwner, TaskPriority, TaskStatus, TargetValue, Barrier, AiOrchestratorResponse, AiClarificationOption, Mitigation, Instruction, EducationMaterial, EducationCategory, EducationSchedule, AiOptimizationSuggestion, TaskTriggerEvent, TriggerTemplate } from '../types';
+import type { CarePlan, Goal, GoalMetric, Task, TaskKind, TaskOwner, TaskPriority, TaskStatus, TargetValue, Barrier, AiOrchestratorResponse, AiClarificationOption, Mitigation, Instruction, EducationMaterial, EducationCategory, EducationSchedule, AiOptimizationSuggestion, TaskTriggerEvent, TriggerTemplate, InstructionCategory } from '../types';
 import { initialCarePlan } from '../data/mockData';
 import { metricDefinitions } from '../data/metricDefinitions';
 import { barrierRepository } from '../data/barrierRepository';
@@ -10,22 +11,24 @@ import { triggerTemplates } from '../data/triggerTemplates';
 const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
 
 const parseDatePlaceholder = (dateStr: string): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
     const now = new Date();
-    if (!dateStr) return now.toISOString().split('T')[0];
-    const match = dateStr.match(/\{\{today\s*([+-])\s*(\d+)([dmy])\}\}/);
-    if (match) {
-        const operator = match[1];
-        const value = parseInt(match[2]);
-        const unit = match[3];
+    if (dateStr.includes('{{today')) {
+        const match = dateStr.match(/\{\{today\s*([+-])\s*(\d+)([dmy])\}\}/);
+        if (match) {
+            const operator = match[1];
+            const value = parseInt(match[2]);
+            const unit = match[3];
 
-        if (operator === '+') {
-            if (unit === 'd') now.setDate(now.getDate() + value);
-            if (unit === 'm') now.setMonth(now.getMonth() + value);
-            if (unit === 'y') now.setFullYear(now.getFullYear() + value);
-        } else {
-            if (unit === 'd') now.setDate(now.getDate() - value);
-            if (unit === 'm') now.setMonth(now.getMonth() - value);
-            if (unit === 'y') now.setFullYear(now.getFullYear() - value);
+            if (operator === '+') {
+                if (unit === 'd') now.setDate(now.getDate() + value);
+                if (unit === 'm') now.setMonth(now.getMonth() + value);
+                if (unit === 'y') now.setFullYear(now.getFullYear() + value);
+            } else {
+                if (unit === 'd') now.setDate(now.getDate() - value);
+                if (unit === 'm') now.setMonth(now.getMonth() - value);
+                if (unit === 'y') now.setFullYear(now.getFullYear() - value);
+            }
         }
     } else {
         // Fallback for simple date strings or if format is wrong
@@ -140,50 +143,75 @@ const applyPatch = (plan: CarePlan, patch: any): { updatedPlan: CarePlan, highli
 };
 
 const systemPrompt = `You are the AI Care Plan Assistant integrated in a clinical management platform.
+Your primary instruction is to first detect the user's input language (English or Spanish) and then generate your entire response ONLY in that detected language.
+
 Your role is to analyze, improve, or modify a patient's Care Plan based on user input.
 The patient's current care plan will be provided in JSON format. Use the 'id' fields from this JSON (e.g., "goal1", "task2") in your patch.
-Always answer in Spanish using a structured, readable, and actionable format, and include a FHIR-like JSON patch that can be applied to update the plan automatically.
 
-Do not return a single long paragraph. Instead, organize the output as follows:
+**Intelligent Task Scheduling:**
+- When creating new tasks, you MUST set a 'dueDate'.
+- Distribute tasks logically over the goal's timeframe. Do not schedule all tasks for the same day.
+- Create a progressive schedule. Foundational tasks (e.g., initial outreach, device setup, core education) should be scheduled first. Follow-up and monitoring tasks should be spaced out later.
+- Avoid overwhelming the patient. Do not schedule more than one or two active tasks for the patient on the same day.
+- Consider priority. High-priority tasks should generally have earlier due dates, but be mindful of patient burden.
+- Use date placeholders for 'dueDate'. Examples: '{{today+7d}}' for 7 days from now, '{{today+1m}}' for 1 month from now, or a specific date like '2025-11-15'.
 
-### 🩺 Análisis del Plan de Cuidado
+**Response Formatting Rules:**
+- Your response must be structured, readable, and clinically actionable.
+- It must include a FHIR-like JSON patch for automatic updates.
+- Do not return a single long paragraph.
+- Keep paragraphs under 3 lines.
+- Always include a JSON Patch section at the end.
+
+**If the user's language is ENGLISH, use this format:**
+
+🩺 Care Plan Analysis
+Brief clinical summary of findings. Mention patient context, conditions, and relevant goals.
+
+🧩 Interpretation & Assumptions
+Use bullet points to list observations. State any clinical or contextual assumptions made.
+
+⚙️ Proposed Changes
+Divide changes into logical sections like Goals, Tasks, Interventions, and Follow-up. Use subheadings and simple clinical emojis (e.g., 🎯 Goal, ✅ Task). Reference existing goals by title and ID (e.g., Diabetes (goal2)).
+
+🧠 JSON Patch
+Include a JSON block with changes.
+
+**If the user's language is SPANISH, use this format:**
+
+🩺 Análisis del Plan de Cuidado
 Breve resumen clínico de los hallazgos. Menciona brevemente el contexto (paciente, condiciones, metas relevantes).
 
-### 🧩 Interpretación y Supuestos
+🧩 Interpretación y Supuestos
 Usa viñetas para listar las observaciones. Indica los supuestos clínicos o contextuales que asumiste.
 
-### ⚙️ Cambios Propuestos
-Divide los cambios por área o meta, usando subtítulos y emojis/íconos clínicos simples (🩺, 📅, ⚙️, ✅, ⚠️, ➕). For existing goals, reference them by their title and ID (e.g., Diabetes (Meta 2)).
+⚙️ Cambios Propuestos
+Divide los cambios en secciones lógicas como Metas, Tareas, Intervenciones y Seguimiento. Usa subtítulos y emojis/íconos clínicos simples (p.ej., 🎯 Meta, ✅ Tarea). Para las metas existentes, haz referencia a ellas por su título e ID (p.ej., Diabetes (Meta 2)).
 
-### 🧠 JSON Patch
-Incluye un bloque JSON con los cambios en formato FHIR (solo campos modificados).
+🧠 JSON Patch
+Incluye un bloque JSON con los cambios.
+
+JSON Patch Rules (apply for both languages):**
 - For updates to existing resources (Goal, Task, etc.), you MUST include the 'id' of the resource from the provided care plan context.
 - For creating new tasks related to an existing goal, create them in an operation immediately after updating that goal.
 - For creating new tasks related to a new goal, create the goal first, then create the tasks in a subsequent operation.
 
-Ejemplo:
+Example JSON Patch:
 {
   "update": [
     { "resourceType": "Goal", "id": "goal2", "status": "in-progress", "targetDate": "2026-01-14" },
     { "resourceType": "Task", "create": [
-        { "title": "Review diabetes goal", "owner": "Care Manager", "priority": "high" },
-        { "title": "Review diabetes medication", "owner": "PCP", "priority": "high" }
+        { "title": "Review diabetes goal", "owner": "Care Manager", "priority": "high", "dueDate": "{{today+3d}}" },
+        { "title": "Review diabetes medication", "owner": "PCP", "priority": "high", "dueDate": "{{today+5d}}" }
     ]},
     { "resourceType": "Goal", "create": [
         { "title": "Smoking cessation", "priority": "high" }
     ]},
     { "resourceType": "Task", "create": [
-        { "title": "Discuss smoking cessation with patient", "owner": "Care Manager", "priority": "medium" }
+        { "title": "Discuss smoking cessation with patient", "owner": "Care Manager", "priority": "medium", "dueDate": "{{today+7d}}" }
     ]}
   ]
 }
-
-Style rules:
-- Use Markdown headings (###).
-- Keep paragraphs under 3 lines.
-- Never return unformatted text.
-- Always include a JSON Patch section.
-- Be bilingual: understand English/Spanish input and always respond in Spanish using the specified format.
 `;
 
 
@@ -303,18 +331,94 @@ export const getTemplateForTrigger = (triggerId: TaskTriggerEvent): Promise<Trig
     });
 };
 
+const generationSystemPrompt = `You are an AI assistant that creates comprehensive clinical care plans from scratch based on patient diagnoses.
 
-// --- Other AI services remain unchanged ---
+**Your Task:**
+Generate a complete Care Plan JSON object. The response MUST be ONLY the JSON object, without any surrounding text, markdown, or explanations. The JSON should be clean and directly parsable.
+
+**Input:**
+You will receive a simple JSON object with patient diagnoses, like: {"primaryDiagnoses": ["I10 - Essential Hypertension", "E11.9 - Type 2 Diabetes Mellitus"]}
+
+**Output Structure:**
+Your output must be a valid JSON object matching the CarePlan interface. It should include:
+- 'careProgram': e.g., 'CCM (Chronic Care Management)'
+- 'diagnoses': Populate with provided info. Add relevant comorbidities, allergies, risk factors.
+- 'timeframe': Set a reasonable 'startDate' (e.g., '{{today+0d}}'), 'targetHorizon' (e.g., '3 months'), and 'priority'.
+- 'clinicalContext': Add baseline metrics and patient preferences.
+- 'goals': Create 1-2 relevant, high-level goals. Each goal must have:
+  - An 'id' (e.g., 'goal-1').
+  - 'title', 'description', 'status', 'priority', 'startDate', 'targetDate'.
+  - 'metrics': At least 2 relevant GoalMetrics.
+  - 'tasks': A list of Task objects. This is the most important part.
+- 'barriers': 1-2 potential patient barriers.
+- 'instructions': 1-2 patient instructions.
+- 'education': 1-2 educational materials.
+
+**Intelligent Task Scheduling Rules:**
+- Create at least 3-5 tasks per goal.
+- For each task, you MUST set a 'dueDate'. Use date placeholders.
+- **Crucially, distribute tasks logically over time.** Create a progressive schedule.
+  - Example:
+    1. Initial tasks first: 'Outreach call' (dueDate: '{{today+1d}}'), 'Order home BP monitor' (dueDate: '{{today+3d}}').
+    2. Educational tasks next: 'Provide education on DASH diet' (dueDate: '{{today+7d}}').
+    3. Monitoring tasks later: 'Weekly check-in call' (dueDate: '{{today+14d}}', and should have a schedule property).
+    4. Follow-up tasks last: 'Schedule follow-up appointment' (dueDate: '{{today+1m}}').
+- Do not schedule all tasks for the same day. Space them out to avoid overwhelming the patient.
+- Ensure all required fields for Goal, Task, etc., are present and have valid values.
+- Make IDs unique (e.g., 'goal-1', 'task-1', 'task-2').
+- Use the provided type definitions as a strict guide for the structure.
+`;
 
 export const generateCarePlanWithAI = async (patientInfo: any): Promise<CarePlan> => {
   console.log("Generating new plan with AI for:", patientInfo);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newPlan = { ...initialCarePlan };
-      newPlan.diagnoses.primary = patientInfo.primaryDiagnoses || [];
-      resolve(newPlan);
-    }, 2000);
-  });
+  try {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: JSON.stringify(patientInfo),
+        config: {
+            systemInstruction: generationSystemPrompt,
+            responseMimeType: 'application/json',
+        }
+    });
+
+    let planJson = response.text.trim();
+    
+    // The model might still wrap it in ```json ... ```
+    if (planJson.startsWith('```json')) {
+        planJson = planJson.substring(7, planJson.length - 3).trim();
+    }
+    
+    const newPlan: CarePlan = JSON.parse(planJson);
+
+    // Post-process dates to handle placeholders
+    if (newPlan.timeframe) {
+      newPlan.timeframe.startDate = parseDatePlaceholder(newPlan.timeframe.startDate);
+    }
+    if (newPlan.goals) {
+      newPlan.goals.forEach(goal => {
+          goal.startDate = parseDatePlaceholder(goal.startDate);
+          goal.targetDate = parseDatePlaceholder(goal.targetDate);
+          if (goal.tasks) {
+            goal.tasks.forEach(task => {
+                task.dueDate = parseDatePlaceholder(task.dueDate);
+                if (task.schedule) {
+                    task.schedule.startDate = parseDatePlaceholder(task.schedule.startDate);
+                }
+            });
+          }
+      });
+    }
+
+    return newPlan;
+
+  } catch (error) {
+    console.error("Error generating care plan with AI:", error);
+    // Fallback to mock data on error
+    alert("There was an error generating the plan with AI. Loading a default plan as a fallback.");
+    const newPlan = { ...initialCarePlan };
+    newPlan.diagnoses.primary = patientInfo.primaryDiagnoses || [];
+    return newPlan;
+  }
 }
 
 export const getAiTaskProposals = (goal: Goal): Promise<Partial<Task>[]> => {
@@ -389,9 +493,7 @@ const goalTemplatesByCondition: { [key: string]: { condition: string; goals: Par
                 description: 'Achieve systolic BP <130 mmHg and diastolic BP <80 mmHg through lifestyle modification and medication adherence.',
                 priority: 'High',
                 metrics: [
-                    // FIX: Added missing referenceRange property.
                     { name: 'Systolic BP', target: { operator: '<', value_min: null, value_max: 130 }, unit: 'mmHg', source: 'AI', referenceRange: 'Normal: < 130 mmHg' },
-                    // FIX: Added missing referenceRange property.
                     { name: 'Diastolic BP', target: { operator: '<', value_min: null, value_max: 80 }, unit: 'mmHg', source: 'AI', referenceRange: 'Normal: < 80 mmHg' },
                 ],
                 qualityMeasures: ['CMS165'],
@@ -401,7 +503,6 @@ const goalTemplatesByCondition: { [key: string]: { condition: string; goals: Par
                 description: 'Ensure consistent adherence to antihypertensive medications to reduce variability in BP readings.',
                 priority: 'Medium',
                 metrics: [
-                    // FIX: Added missing referenceRange property.
                     { name: 'Med Adherence', target: { operator: '>=', value_min: 90, value_max: null }, unit: '%', source: 'AI', referenceRange: 'Target: > 95%' },
                 ],
                 qualityMeasures: ['CMS68'],
@@ -426,7 +527,6 @@ const goalTemplatesByCondition: { [key: string]: { condition: string; goals: Par
                 description: 'Maintain HbA1c <7.0% through medication management and glucose monitoring.',
                 priority: 'High',
                 metrics: [
-                    // FIX: Added missing referenceRange property.
                     { name: 'HbA1c', target: { operator: '<', value_min: null, value_max: 7.0 }, unit: '%', source: 'AI', referenceRange: 'Normal: < 7.0%' },
                 ],
                 qualityMeasures: ['CMS122'],
@@ -461,7 +561,6 @@ const goalTemplatesByCondition: { [key: string]: { condition: string; goals: Par
                 description: 'Maintain LDL cholesterol <100 mg/dL through statin therapy and dietary intervention.',
                 priority: 'High',
                 metrics: [
-                    // FIX: Added missing referenceRange property.
                     { name: 'LDL Cholesterol', target: { operator: '<', value_min: null, value_max: 100 }, unit: 'mg/dL', source: 'AI', referenceRange: 'Normal: < 100 mg/dL' },
                 ],
                 qualityMeasures: ['CMS347'],
@@ -705,39 +804,157 @@ export const getAiBarrierAutofill = (category: string, description: string): Pro
     }), 1000));
 };
 
-export const getAiInstructionProposals = (carePlan: CarePlan): Promise<Partial<Instruction>[]> => {
-  const proposals: Partial<Instruction>[] = [];
-  const hasHypertensionGoal = carePlan.goals.some(g => g.title.toLowerCase().includes('blood pressure'));
+const instructionGenerationSystemPrompt = `Generate clear and educational Patient Instructions that can be displayed in a patient-facing app as part of the Care Plan.
 
-  if (hasHypertensionGoal) {
-    proposals.push({
-      title: "Follow a low-sodium diet",
-      details: "Limit your sodium intake to less than 2,300 mg per day. Avoid processed foods, canned soups, and salty snacks.",
-      category: 'Lifestyle',
-      delivery_method: 'Printed',
-      rationale: 'Low-sodium diet is a key lifestyle modification for managing hypertension.'
-    });
-    proposals.push({
-      title: "Report side effects of new medication",
-      details: "If you experience dizziness, coughing, or swelling, contact the care management team immediately via the patient app or phone.",
-      category: 'Symptoms',
-      delivery_method: 'App',
-      rationale: 'Ensures proactive management of potential adverse drug reactions for hypertension medications.'
-    });
-  }
+Each instruction must have exactly three fields:
 
-  const hasDiabetesGoal = carePlan.goals.some(g => g.title.toLowerCase().includes('diabetes'));
-  if(hasDiabetesGoal) {
-      proposals.push({
-          title: "Check blood sugar twice daily",
-          details: "Check your blood sugar before breakfast and before dinner. Log your readings and share them with your care manager weekly.",
-          category: 'Monitoring',
-          delivery_method: 'App',
-          rationale: 'Regular glucose monitoring is crucial for managing Type 2 Diabetes.'
-      });
+Title: Short imperative phrase (max 10 words).
+
+Body: Clear, patient-friendly text (1–3 sentences) describing what to do and why.
+
+Category: One of the following values: Medication, Monitoring, Lifestyle, Appointment, Education.
+
+Rules:
+
+Do not include any other fields, metadata, or numbering.
+
+Use plain English (or Spanish if requested).
+
+Write in an encouraging, professional tone suitable for patient engagement.
+
+Avoid technical terms unless common in patient education (e.g., “blood pressure”).
+
+Focus on daily actionable guidance, not clinician tasks or documentation.
+
+Each instruction must be self-contained and not depend on other ones.
+
+Context input (provided by system):
+
+Active medical conditions: {{Condition list}}
+
+Active medications: {{Medication list}}
+
+Active goals: {{Goal list}}
+
+Care setting: Outpatient chronic care management
+
+Target audience: Adult patient with chronic diseases
+
+Output format:
+JSON array of objects, each with:
+
+{
+  "title": "Check blood pressure every morning",
+  "body": "Measure your blood pressure before taking your medication. Record it in your logbook or app.",
+  "category": "Monitoring"
+}
+
+
+Example categories by condition:
+
+Hypertension: blood pressure monitoring, sodium reduction, medication adherence
+
+Diabetes: glucose monitoring, diet, foot care, appointment adherence
+
+Heart failure: weight monitoring, fluid restriction, medication reminders
+
+COPD/Asthma: inhaler use, trigger avoidance, breathing exercises
+
+CKD: diet, fluid intake, lab monitoring
+
+Post-hospital (TCM): appointment follow-up, medication reconciliation, symptom watch
+
+Generate 3–5 appropriate instructions for the given context.
+
+💡 Ejemplo de uso con contexto
+
+Prompt example:
+
+Generate Patient Instructions for a patient with:
+
+Conditions: Hypertension, Type 2 Diabetes
+
+Medications: Lisinopril 10mg daily, Metformin 500mg twice daily
+
+Goals: Improve blood pressure control, Maintain fasting glucose <130 mg/dL
+
+Expected Output:
+
+[
+  {
+    "title": "Check blood pressure every morning",
+    "body": "Measure your blood pressure before taking your medication and record the result in your app.",
+    "category": "Monitoring"
+  },
+  {
+    "title": "Take Lisinopril 10mg once daily",
+    "body": "Take one tablet every morning with or without food. Do not skip doses.",
+    "category": "Medication"
+  },
+  {
+    "title": "Check fasting glucose daily",
+    "body": "Test your blood sugar before breakfast each day and record it in your logbook.",
+    "category": "Monitoring"
+  },
+  {
+    "title": "Follow a low-sodium, balanced diet",
+    "body": "Limit added salt and include vegetables, lean proteins, and whole grains in your meals.",
+    "category": "Lifestyle"
+  },
+  {
+    "title": "Keep your next appointment",
+    "body": "Bring your logbook and medication list to review progress with your care team.",
+    "category": "Appointment"
   }
-  
-  return new Promise(resolve => setTimeout(() => resolve(proposals), 1500));
+]`;
+
+export const getAiInstructionProposals = async (carePlan: CarePlan): Promise<Partial<Instruction>[]> => {
+    const conditions = carePlan.diagnoses.primary.join(', ');
+    const medications = carePlan.instructions
+        .filter(i => i.category === 'Medication')
+        .map(i => i.title)
+        .join(', ');
+    const goals = carePlan.goals.map(g => g.title).join(', ');
+
+    const userPrompt = `Generate Patient Instructions for a patient with:
+Conditions: ${conditions || 'Not specified'}
+Medications: ${medications || 'Not specified'}
+Goals: ${goals || 'Not specified'}`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: userPrompt,
+            config: {
+                systemInstruction: instructionGenerationSystemPrompt,
+                responseMimeType: 'application/json',
+            }
+        });
+
+        let jsonResponse = response.text.trim();
+        if (jsonResponse.startsWith('```json')) {
+            jsonResponse = jsonResponse.substring(7, jsonResponse.length - 3).trim();
+        }
+
+        const proposals: { title: string; body: string; category: InstructionCategory }[] = JSON.parse(jsonResponse);
+        
+        return proposals.map(p => ({
+            title: p.title,
+            details: p.body,
+            category: p.category,
+            rationale: `AI generated based on patient's conditions and goals.`
+        }));
+
+    } catch (error) {
+        console.error("Error generating AI instruction proposals:", error);
+        // Fallback to a simple message or empty array
+        return [{
+            title: "Error generating suggestions",
+            details: "Could not connect to the AI service. Please try again later.",
+            category: 'Education',
+            rationale: 'An error occurred during AI generation.'
+        }];
+    }
 };
 
 

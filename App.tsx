@@ -6,6 +6,7 @@ import { GoalsTasksStep } from './components/steps/GoalsTasksStep';
 import { BarriersStep } from './components/steps/BarriersStep';
 import { InstructionsStep } from './components/steps/InstructionsStep';
 import { EducationStep } from './components/steps/EducationStep';
+import { TimelineStep } from './components/steps/TimelineStep';
 import { SummaryStep } from './components/steps/SummaryStep';
 import { AICarePlanAssistantPanel } from './components/assistant/AICarePlanAssistantPanel';
 import { Chatbot } from './components/chatbot/Chatbot';
@@ -24,12 +25,13 @@ const App: React.FC = () => {
 
 
   const steps = [
-    { id: 1, label: 'Information' },
+    { id: 1, label: 'Clinical Intake' },
     { id: 2, label: 'Goals & Tasks' },
     { id: 3, label: 'Barriers' },
     { id: 4, label: 'Instructions' },
     { id: 5, label: 'Education' },
-    { id: 6, label: 'Summary' },
+    { id: 6, label: 'Timeline' },
+    { id: 7, label: 'Summary' },
   ];
 
   const handleNext = () => setActiveStep((prev) => Math.min(prev + 1, steps.length));
@@ -93,6 +95,8 @@ const App: React.FC = () => {
       case 5:
         return <EducationStep carePlan={carePlan} setCarePlan={setCarePlan} />;
       case 6:
+        return <TimelineStep carePlan={carePlan} setCarePlan={setCarePlan} />;
+      case 7:
         return <SummaryStep carePlan={carePlan} setCarePlan={setCarePlan} />;
       default:
         return null;

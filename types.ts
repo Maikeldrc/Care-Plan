@@ -1,5 +1,6 @@
 
 
+
 export interface Mitigation {
   text: string;
   completed: boolean;
@@ -24,7 +25,7 @@ export interface TargetValue {
   value_max: number | null;
 }
 
-export type InstructionCategory = 'Medication' | 'Monitoring' | 'Symptoms' | 'Appointment' | 'Lifestyle' | 'Follow-up' | 'Other';
+export type InstructionCategory = 'Medication' | 'Monitoring' | 'Lifestyle' | 'Appointment' | 'Education';
 export type InstructionDeliveryMethod = 'Verbal' | 'Printed' | 'SMS' | 'App';
 export type InstructionStatus = 'Active' | 'Delivered' | 'Paused' | 'Archived';
 export type InstructionOwner = 'Patient' | 'Care Manager' | 'PCP';
@@ -113,6 +114,13 @@ export interface BaselineMetric {
   unit: string;
 }
 
+export interface Provider {
+  name: string;
+  phone: string;
+  address: string;
+  clinicName?: string;
+}
+
 export interface CarePlan {
   careProgram: string;
   diagnoses: {
@@ -134,6 +142,7 @@ export interface CarePlan {
   barriers: Barrier[];
   instructions: Instruction[];
   education: EducationMaterial[];
+  provider: Provider;
 }
 
 export interface Goal {

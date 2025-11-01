@@ -385,7 +385,7 @@ const TaskCard: React.FC<{
   );
 }
 
-const GoalCard: React.FC<{ goal: Goal; onUpdateGoal: (goal: Goal) => void; onDeleteGoal: () => void; onEditGoal: () => void; highlightedItems: Set<string>; carePlan: CarePlan }> = ({ goal, onUpdateGoal, onDeleteGoal, onEditGoal, highlightedItems, carePlan }) => {
+const GoalCard: React.FC<{ goal: Goal; goalIndex: number; onUpdateGoal: (goal: Goal) => void; onDeleteGoal: () => void; onEditGoal: () => void; highlightedItems: Set<string>; carePlan: CarePlan }> = ({ goal, goalIndex, onUpdateGoal, onDeleteGoal, onEditGoal, highlightedItems, carePlan }) => {
   const [isTasksVisible, setIsTasksVisible] = useState(true);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [isQmModalOpen, setIsQmModalOpen] = useState(false);
@@ -508,7 +508,18 @@ const GoalCard: React.FC<{ goal: Goal; onUpdateGoal: (goal: Goal) => void; onDel
               <TargetIcon className="w-6 h-6 text-indigo-600" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-brand-gray-900">{goal.title}</h3>
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+                  <span
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full"
+                      style={{ backgroundColor: '#EEF2FF', color: '#4338CA' }}
+                      aria-label={`Goal number ${goalIndex}`}
+                      title="Represents a care plan goal focused on patient progress."
+                  >
+                      <span>🚀</span>
+                      Goal {goalIndex}
+                  </span>
+                  <h3 className="text-lg font-bold text-brand-gray-900">{goal.title}</h3>
+              </div>
               <p className="text-sm text-brand-gray-500 mt-1">{goal.description}</p>
             </div>
           </div>
@@ -670,7 +681,7 @@ export const GoalsTasksStep: React.FC<GoalsTasksStepProps> = ({ carePlan, setCar
       </div>
 
       <div className="space-y-4">
-        {carePlan.goals.map(goal => ( <GoalCard key={goal.id} goal={goal} onUpdateGoal={handleUpdateGoal} onDeleteGoal={() => handleDeleteGoal(goal.id)} onEditGoal={() => setGoalToEdit(goal)} highlightedItems={highlightedItems} carePlan={carePlan} /> ))}
+        {carePlan.goals.map((goal, index) => ( <GoalCard key={goal.id} goal={goal} goalIndex={index + 1} onUpdateGoal={handleUpdateGoal} onDeleteGoal={() => handleDeleteGoal(goal.id)} onEditGoal={() => setGoalToEdit(goal)} highlightedItems={highlightedItems} carePlan={carePlan} /> ))}
       </div>
       
       <AddGoalModal 

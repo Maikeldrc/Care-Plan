@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useMemo, FC, useRef } from 'react';
+
+
+
+
+
+
+
+import React, { useState, useMemo, useEffect, FC, useRef } from 'react';
 import { XIcon } from '../icons/XIcon';
 import { LightningBoltIcon } from '../icons/LightningBoltIcon';
 import { PencilIcon } from '../icons/PencilIcon';
@@ -34,6 +41,7 @@ const baseInputStyles = "block w-full border border-brand-gray-300 rounded-md sh
 const inputStyles = `${baseInputStyles} h-10 px-3 py-2`;
 const selectStyles = `${baseInputStyles} h-10 pl-3 pr-10 py-2`;
 const textareaStyles = `${baseInputStyles} px-3 py-2`;
+const checkboxStyles = "focus:ring-brand-blue h-4 w-4 bg-white text-brand-blue border-gray-300 rounded focus:ring-2";
 
 
 // --- Main Modal Component ---
@@ -368,7 +376,7 @@ export const ConfigureReactiveOutcomesModal: FC<ConfigureReactiveOutcomesModalPr
                             )}
                         </div>
                         <div className="col-span-5 bg-brand-gray-50 overflow-y-auto">
-                            <PropertiesPanel selectedNode={selectedNode} onUpdate={handleUpdateNode} zIndex={zIndex} />
+                            <PropertiesPanel selectedNode={selectedNode} onUpdate={handleUpdateNode} />
                         </div>
                     </div>
                     <div className="p-4 bg-brand-gray-50 border-t flex justify-between items-center">
@@ -625,7 +633,7 @@ const PropertyGroup: FC<{ title: string, children: React.ReactNode }> = ({ title
     </div>
 );
 
-const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (updates: Partial<CreateTaskActionDetails>) => void, zIndex: number }> = ({ details, onUpdate, zIndex }) => {
+const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (updates: Partial<CreateTaskActionDetails>) => void }> = ({ details, onUpdate }) => {
     const taskKindOptions: TaskKind[] = ['Communication', 'Service Request', 'Task', 'Device Request', 'Nutrition Order', 'Medication Request', 'Questionnaire', 'Other'];
     const taskPriorityOptions: TaskPriority[] = ['High', 'Medium', 'Low'];
     const targetOptions: ReactiveTarget[] = ['Patient', 'Care Manager', 'PCP', 'Specialist', 'System', 'Physician'];
@@ -634,7 +642,6 @@ const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (up
         onUpdate({ kind: newKind, extra: {} });
     };
 
-    // Construct props for KindSpecificFields
     const isRequestKind = useMemo(() => ['Service Request', 'Device Request', 'Medication Request', 'Nutrition Order'].includes(details.kind), [details.kind]);
     const isInternalKind = useMemo(() => ['Task', 'Communication', 'Other'].includes(details.kind), [details.kind]);
 
@@ -643,9 +650,11 @@ const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (up
         owner: isInternalKind ? details.subjectRole as TaskOwner : undefined,
         performer: isRequestKind && details.subjectRole ? [details.subjectRole as string] : [],
     }), [details, isInternalKind, isRequestKind]);
-
-    const setFormDataForFields = (updater: (prev: any) => any) => {
-        const newFormData = updater(formDataForFields);
+    
+    const setFormDataForFields: React.Dispatch<React.SetStateAction<any>> = (updater) => {
+        const newFormData = typeof updater === 'function'
+            ? updater(formDataForFields)
+            : updater;
 
         const updates: Partial<CreateTaskActionDetails> = {};
         if (JSON.stringify(newFormData.extra) !== JSON.stringify(details.extra)) {
@@ -653,14 +662,14 @@ const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (up
         }
 
         if (isInternalKind && newFormData.owner !== details.subjectRole) {
-            updates.subjectRole = newFormData.owner;
+            updates.subjectRole = newFormData.owner as ReactiveTarget;
         }
         
         if (isRequestKind) {
             const newPerformer = newFormData.performer?.[0];
             const currentPerformer = details.subjectRole;
             if (newPerformer !== currentPerformer) {
-                updates.subjectRole = newPerformer;
+                updates.subjectRole = newPerformer as ReactiveTarget;
             }
         }
         
@@ -691,11 +700,26 @@ const CreateTaskProperties: FC<{ details: CreateTaskActionDetails, onUpdate: (up
                     {targetOptions.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
             </PropertyGroup>
+            <div className="relative flex items-start">
+                <div className="flex items-center h-5">
+                    <input
+                        id="autoCompleteRule"
+                        type="checkbox"
+                        // Fix: The 'checked' attribute of a checkbox expects a boolean. The 'autoCompleteRule' property could be a string or boolean, so it's explicitly coerced to a boolean value.
+                        checked={details.autoCompleteRule === true || String(details.autoCompleteRule) === 'true'}
+                        onChange={e => onUpdate({ autoCompleteRule: e.target.checked })}
+                        className={checkboxStyles}
+                    />
+                </div>
+                <div className="ml-3 text-sm">
+                    <label htmlFor="autoCompleteRule" className="font-medium text-brand-gray-700">Auto-complete task when evidence matches</label>
+                </div>
+            </div>
             <div className="pt-4 mt-4 border-t border-brand-gray-200">
                 <h4 className="font-semibold text-brand-gray-700">Kind-Specific Fields</h4>
                 <KindSpecificFields 
                     formData={formDataForFields as any}
-                    setFormData={setFormDataForFields as any}
+                    setFormData={setFormDataForFields}
                     carePlan={undefined}
                 />
             </div>
@@ -728,7 +752,7 @@ const SendMessageProperties: FC<{ details: SendMessageActionDetails, onUpdate: (
     );
 };
 
-const PropertiesPanel: FC<{ selectedNode: ReactiveFlow | ReactiveAction | null, onUpdate: (id: string, updates: any) => void, zIndex: number }> = ({ selectedNode, onUpdate, zIndex }) => {
+const PropertiesPanel: FC<{ selectedNode: ReactiveFlow | ReactiveAction | null, onUpdate: (id: string, updates: any) => void }> = ({ selectedNode, onUpdate }) => {
     if (!selectedNode) return <div className="p-6 text-center text-brand-gray-500"><p className="font-semibold">No Node Selected</p><p className="text-sm mt-1">Click on a trigger, condition, or action in the tree to view and edit its properties.</p></div>;
 
     const type = getNodeType(selectedNode);
@@ -736,14 +760,18 @@ const PropertiesPanel: FC<{ selectedNode: ReactiveFlow | ReactiveAction | null, 
     const colors = nodeColors[type];
 
     const handleDetailsUpdate = (updates: any) => {
-        onUpdate(selectedNode.id, { actionDetails: { ...(selectedNode as ReactiveAction).actionDetails, ...updates } });
+        if (selectedNode && 'actionDetails' in selectedNode) {
+            onUpdate(selectedNode.id, { actionDetails: { ...selectedNode.actionDetails, ...updates } });
+        }
     };
 
     const renderActionProperties = () => {
-        const action = selectedNode as ReactiveAction;
+        if (!('actionType' in selectedNode) || !('actionDetails' in selectedNode)) return null;
+        
+        const action = selectedNode;
         switch(action.actionType) {
             case 'CreateTask':
-                return <CreateTaskProperties details={action.actionDetails as CreateTaskActionDetails} onUpdate={handleDetailsUpdate} zIndex={zIndex} />;
+                return <CreateTaskProperties details={action.actionDetails as CreateTaskActionDetails} onUpdate={handleDetailsUpdate} />;
             case 'SendMessage':
                 return <SendMessageProperties details={action.actionDetails as SendMessageActionDetails} onUpdate={handleDetailsUpdate} />;
             default:
@@ -761,12 +789,12 @@ const PropertiesPanel: FC<{ selectedNode: ReactiveFlow | ReactiveAction | null, 
                 </div>
             </div>
             
-            {type === 'trigger' && (
+            {type === 'trigger' && 'trigger' in selectedNode && (
                 <PropertyGroup title="Trigger Event">
-                    <p className="p-2 bg-white border rounded-md">{triggerEvents.find(t => t.id === (selectedNode as ReactiveFlow).trigger.id)?.label}</p>
+                    <p className="p-2 bg-white border rounded-md">{triggerEvents.find(t => t.id === selectedNode.trigger.id)?.label}</p>
                 </PropertyGroup>
             )}
-            {type === 'condition' && (
+            {type === 'condition' && 'actionDetails' in selectedNode && (
                  <PropertyGroup title="Condition Expression">
                     <input type="text" value={(selectedNode.actionDetails as ConditionActionDetails).expression} onChange={e => handleDetailsUpdate({ expression: e.target.value })} className={inputStyles} placeholder="e.g. observation.value > 140" />
                 </PropertyGroup>

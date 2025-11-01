@@ -279,10 +279,8 @@ const CommunicationFields: React.FC<SpecificFieldsProps> = ({ formData, setFormD
 const DeviceRequestFields: React.FC<SpecificFieldsProps> = ({ formData, setFormData, carePlan }) => {
     
     const reasonCodeOptions = useMemo(() => {
-        if (!carePlan) return [];
-        
-        const diagnoses = carePlan.diagnoses.primary || [];
-        const comorbidities = carePlan.diagnoses.comorbidities || [];
+        const diagnoses = carePlan?.diagnoses?.primary || [];
+        const comorbidities = carePlan?.diagnoses?.comorbidities || [];
         
         const options = new Set<string>();
 

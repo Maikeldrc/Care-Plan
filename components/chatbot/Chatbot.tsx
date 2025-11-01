@@ -1,22 +1,23 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { getChatbotResponse } from '../../services/geminiService';
-import { AiSparkleIcon } from '../icons/AiSparkleIcon';
 import { XIcon } from '../icons/XIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { UserIcon } from '../icons/UserIcon';
-import { BrainIcon } from '../icons/BrainIcon';
 
 interface Message {
     sender: 'user' | 'ai';
     text: string;
 }
 
+const BETY_AVATAR_URL_64 = 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=64&h=64&fit=crop&dpr=2';
+const BETY_AVATAR_URL_40 = 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=40&h=40&fit=crop&dpr=2';
+
+
 export const Chatbot: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([{
         sender: 'ai',
-        text: 'Hello! How can I help you today?'
+        text: 'Hello! I’m Bety from ITERA HEALTH. How can I help you today?'
     }]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -45,10 +46,10 @@ export const Chatbot: React.FC = () => {
         return (
           <button 
             onClick={() => setIsOpen(true)} 
-            className="fixed bottom-8 right-8 bg-brand-blue text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-transform transform hover:scale-110 animate-scale-in" 
-            aria-label="Open AI Chat"
+            className="fixed bottom-8 right-8 bg-brand-blue w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-transform transform hover:scale-110 animate-scale-in" 
+            aria-label="Open Bety Chat"
           >
-            <AiSparkleIcon className="w-8 h-8" />
+            <img src={BETY_AVATAR_URL_64} alt="Bety, AI Assistant" className="w-16 h-16 rounded-full object-cover" />
           </button>
         );
     }
@@ -56,16 +57,16 @@ export const Chatbot: React.FC = () => {
     return (
         <div className="fixed bottom-8 right-8 w-full max-w-sm bg-white rounded-lg shadow-2xl border border-brand-gray-200 flex flex-col z-50 animate-scale-in" style={{height: '600px'}}>
           <header className="p-4 border-b border-brand-gray-200 flex justify-between items-center bg-brand-gray-50 rounded-t-lg flex-shrink-0">
-            <div className="flex items-center gap-2">
-                <AiSparkleIcon className="w-6 h-6 text-brand-blue" />
-                <h3 className="font-semibold text-brand-gray-800">AI Chat</h3>
+            <div className="flex items-center gap-3">
+                <img src={BETY_AVATAR_URL_40} alt="Bety" className="w-8 h-8 rounded-full object-cover" />
+                <h3 className="font-semibold text-brand-gray-800">Bety</h3>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-brand-gray-400 hover:text-brand-gray-600"><XIcon className="w-5 h-5" /></button>
           </header>
           <main className="p-4 flex-grow overflow-y-auto space-y-4">
             {messages.map((msg, index) => (
                 <div key={index} className={`flex items-start gap-3 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
-                    {msg.sender === 'ai' && <div className="w-8 h-8 rounded-full bg-brand-gray-200 flex items-center justify-center flex-shrink-0"><BrainIcon className="w-5 h-5 text-brand-gray-600"/></div>}
+                    {msg.sender === 'ai' && <img src={BETY_AVATAR_URL_40} alt="Bety" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />}
                     <div className={`px-4 py-2 rounded-lg text-sm max-w-[80%] break-words ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-brand-gray-100 text-brand-gray-800'}`}>
                         {msg.text}
                     </div>
@@ -74,7 +75,7 @@ export const Chatbot: React.FC = () => {
             ))}
             {isLoading && (
                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-brand-gray-200 flex items-center justify-center flex-shrink-0"><BrainIcon className="w-5 h-5 text-brand-gray-600"/></div>
+                    <img src={BETY_AVATAR_URL_40} alt="Bety" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                     <div className="px-4 py-2 rounded-lg text-sm bg-brand-gray-100 text-brand-gray-800 flex items-center">
                         <div className="w-2 h-2 bg-brand-gray-500 rounded-full animate-bounce [animation-delay:-0.3s] mr-1"></div>
                         <div className="w-2 h-2 bg-brand-gray-500 rounded-full animate-bounce [animation-delay:-0.15s] mr-1"></div>

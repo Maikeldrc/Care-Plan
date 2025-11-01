@@ -1,3 +1,4 @@
+
 import type { TriggerTemplate, TaskTriggerEvent } from '../types';
 
 export const triggerTemplates: TriggerTemplate[] = [
@@ -67,7 +68,7 @@ export const triggerTemplates: TriggerTemplate[] = [
           kind: 'Task',
           extra: {},
         }
-      },
+      }
     ]
   },
   {
@@ -85,7 +86,7 @@ export const triggerTemplates: TriggerTemplate[] = [
                 priority: 'Medium',
                 acceptanceCriteria: 'Patient contacted, educated, and plan confirmed.',
                 kind: 'Communication',
-                extra: { mode: 'Phone Call', recipient: 'Patient' },
+                extra: { mode: 'Phone Call' },
             }
         }
     ]
@@ -95,7 +96,7 @@ export const triggerTemplates: TriggerTemplate[] = [
     name: 'Patient Positive Reinforcement',
     description: 'Sends a positive reinforcement message to the patient for a normal reading.',
     triggerId: 'observation_normal',
-    tags: ['Observation', 'Patient Engagement'],
+    tags: ['Patient Engagement'],
     actions: [
         {
             type: 'SendMessage',

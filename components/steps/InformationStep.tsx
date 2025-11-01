@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { CarePlan, BaselineMetric } from '../../types';
 import { AiSparkleIcon } from '../icons/AiSparkleIcon';
@@ -162,10 +163,8 @@ export const InformationStep: React.FC<InformationStepProps> = ({
         }
     });
     
-    carePlan.diagnoses.primary.forEach(dx => relatedCodes.add(dx));
-
     return Array.from(relatedCodes).sort();
-  }, [carePlan.diagnoses.comorbidities, carePlan.diagnoses.primary]);
+  }, [carePlan.diagnoses.comorbidities]);
 
   useEffect(() => {
     const availableSet = new Set(availableDiagnoses);
